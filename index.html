@@ -1,51 +1,144 @@
- <!DOCTYPE html>
-     <html lang="en">
-     <head>
-         <meta charset="UTF-8">
-         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-         <title>OBD2 Bluetooth Web App</title>
-         <style>
-             body { font-family: Arial, sans-serif; padding: 20px; }
-             button { padding: 10px 20px; font-size: 16px; }
-             .data { margin-top: 20px; }
-             .data div { margin-bottom: 10px; }
-         </style>
-     </head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport="width=device-width, initial-scale=1.0">
+    <title>Bluetooth Service Scanner</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { padding: 10px 20px; font-size: 16px; }
+        .data { margin-top: 20px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <button id="scanButton">Сканировать устройства</button>
+    <div class="data" id="deviceInfo"></div>
 
-     <button id="discoverButton">Discover</button>
-<div id="deviceInfo"></div>
+    <script>
+        document.getElementById('scanButton').addEventListener('click', () => {
+            navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: [
+                    'battery_service',       // UUID сервиса батареи
+                    'device_information',    // UUID сервиса информации о устройстве
+                    'generic_access',        // UUID сервиса общего доступа
+                    'generic_attribute'      // UUID сервиса общих атрибутов
+                ]
+            })
+            .then(device => {
+                console.log('Selected device:', device.name || device.id);
+                document.getElementById('deviceInfo').innerText += `Устройство: ${device.name || device.id}\n`;
+                return device.gatt.connect();
+            })
+            .then(server => {
+                console.log('Connected to GATT Server');
 
-<script>
-document.getElementById('discoverButton').addEventListener('click', () => {
-    navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: [] // Запрашиваем все доступные сервисы
-    })
-    .then(device => {
-        console.log('Connecting to GATT Server...');
-        return device.gatt.connect();
-    })
-    .then(server => {
-        console.log('Getting Services...');
-        return server.getPrimaryServices();
-    })
-    .then(services => {
-        let queue = Promise.resolve();
-        services.forEach(service => {
-            queue = queue.then(_ => service.getCharacteristics().then(characteristics => {
-                console.log('Service:', service.uuid);
-                characteristics.forEach(characteristic => {
-                    console.log('Characteristic:', characteristic.uuid);
-                    document.getElementById('deviceInfo').innerHTML += `<p>Service: ${service.uuid}, Characteristic: ${characteristic.uuid}</p>`;
-                });
-            }));
+                // Запрашиваем основные сервисы и их характеристики
+                return Promise.all([
+                    server.getPrimaryService('battery_service')
+                        .then(service => service.getCharacteristic('battery_level'))
+                        .then(characteristic => characteristic.readValue())
+                        .then(value => {
+                            let batteryLevel = value.getUint8(0);
+                            console.log(`Battery level: ${batteryLevel}%`);
+                            document.getElementById('deviceInfo').innerText += `Battery level: ${batteryLevel}%\n`;
+                        })
+                        .catch(error => {
+                            console.log('Battery service not available:', error);
+                            document.getElementById('deviceInfo').innerText += `Battery service not available\n`;
+                        }),
+                    
+                    server.getPrimaryService('device_information')
+                        .then(service => Promise.all([
+                            service.getCharacteristic('manufacturer_name_string')
+                                .then(characteristic => characteristic.readValue())
+                                .then(value => {
+                                    let decoder = new TextDecoder('utf-8');
+                                    let manufacturer = decoder.decode(value);
+                                    console.log(`Manufacturer: ${manufacturer}`);
+                                    document.getElementById('deviceInfo').innerText += `Manufacturer: ${manufacturer}\n`;
+                                }),
+                            
+                            service.getCharacteristic('model_number_string')
+                                .then(characteristic => characteristic.readValue())
+                                .then(value=> {
+                                    let decoder = new TextDecoder('utf-8');
+                                    let modelNumber = decoder.decode(value);
+                                    console.log(`Model Number: ${modelNumber}`);
+                                    document.getElementById('deviceInfo').innerText += `Model Number: ${modelNumber}\n`;
+                                }),
+
+                            service.getCharacteristic('serial_number_string')
+                                .then(characteristic => characteristic.readValue())
+                                .then(value => {
+                                    let decoder = new TextDecoder('utf-8');
+                                    let serialNumber = decoder.decode(value);
+                                    console.log(`Serial Number: ${serialNumber}`);
+                                    document.getElementById('deviceInfo').innerText += `Serial Number: ${serialNumber}\n`;
+                                }),
+
+                            service.getCharacteristic('hardware_revision_string')
+                                .then(characteristic => characteristic.readValue())
+                                .then(value => {
+                                    let decoder = new TextDecoder('utf-8');
+                                    let hardwareRevision = decoder.decode(value);
+                                    console.log(`Hardware Revision: ${hardwareRevision}`);
+                                    document.getElementById('deviceInfo').innerText += `Hardware Revision: ${hardwareRevision}\n`;
+                                }),
+
+                            service.getCharacteristic('firmware_revision_string')
+                                .then(characteristic => characteristic.readValue())
+                                .then(value => {
+                                    let decoder = new TextDecoder('utf-8');
+                                    let firmwareRevision = decoder.decode(value);
+                                    console.log(`Firmware Revision: ${firmwareRevision}`);
+                                    document.getElementById('deviceInfo').innerText += `Firmware Revision: ${firmwareRevision}\n`;
+                                }),
+
+                            service.getCharacteristic('software_revision_string')
+                                .then(characteristic => characteristic.readValue())
+                                .then(value => {
+                                    let decoder = new TextDecoder('utf-8');
+                                    let softwareRevision = decoder.decode(value);
+                                    console.log(`Software Revision: ${softwareRevision}`);
+                                    document.getElementById('deviceInfo').innerText += `Software Revision: ${softwareRevision}\n`;
+                                }),
+                        ]))
+                        .catch(error => {
+                            console.log('Device information service not available:', error);
+                            document.getElementById('deviceInfo').innerText += `Device information service not available\n`;
+                        }),
+
+                    server.getPrimaryService('generic_access')
+                        .then(service => service.getCharacteristic('gap.device_name'))
+                        .then(characteristic => characteristic.readValue())
+                        .then(value => {
+                            let decoder = new TextDecoder('utf-8');
+                            let deviceName = decoder.decode(value);
+                            console.log(`Device Name: ${deviceName}`);
+                            document.getElementById('deviceInfo').innerText += `Device Name: ${deviceName}\n`;
+                        })
+                        .catch(error => {
+                            console.log('Generic access service not available:', error);document.getElementById('deviceInfo').innerText += `Generic access service not available\n`;
+                        }),
+
+                    server.getPrimaryService('generic_attribute')
+                        .then(service => service.getCharacteristic('gatt.service_changed'))
+                        .then(characteristic => {
+                            console.log('Generic Attribute Service Found');
+                            return characteristic.readValue();
+                        })
+                        .catch(error => {
+                            console.log('Generic attribute service not available:', error);
+                            document.getElementById('deviceInfo').innerText += `Generic attribute service not available\n`;
+                        }),
+                ]);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('deviceInfo').innerText += `Ошибка: ${error}\n`;
+            });
         });
-        return queue;
-    })
-    .catch(error => {
-        console.error('Error:', error);
-    });
-});
     </script>
-     </body>
-     </html>
+</body>
+</html>
