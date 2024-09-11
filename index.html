@@ -1,0 +1,51 @@
+ <!DOCTYPE html>
+     <html lang="en">
+     <head>
+         <meta charset="UTF-8">
+         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+         <title>OBD2 Bluetooth Web App</title>
+         <style>
+             body { font-family: Arial, sans-serif; padding: 20px; }
+             button { padding: 10px 20px; font-size: 16px; }
+             .data { margin-top: 20px; }
+             .data div { margin-bottom: 10px; }
+         </style>
+     </head>
+
+     <button id="discoverButton">Discover</button>
+<div id="deviceInfo"></div>
+
+<script>
+document.getElementById('discoverButton').addEventListener('click', () => {
+    navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: [] // Запрашиваем все доступные сервисы
+    })
+    .then(device => {
+        console.log('Connecting to GATT Server...');
+        return device.gatt.connect();
+    })
+    .then(server => {
+        console.log('Getting Services...');
+        return server.getPrimaryServices();
+    })
+    .then(services => {
+        let queue = Promise.resolve();
+        services.forEach(service => {
+            queue = queue.then(_ => service.getCharacteristics().then(characteristics => {
+                console.log('Service:', service.uuid);
+                characteristics.forEach(characteristic => {
+                    console.log('Characteristic:', characteristic.uuid);
+                    document.getElementById('deviceInfo').innerHTML += `<p>Service: ${service.uuid}, Characteristic: ${characteristic.uuid}</p>`;
+                });
+            }));
+        });
+        return queue;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+});
+    </script>
+     </body>
+     </html>
